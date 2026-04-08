@@ -21,7 +21,8 @@ if TYPE_CHECKING:
 
 
 class HuggingFaceModel(TorchModel):
-    r"""Wrapper class that wraps HuggingFace models as DeepChem models
+    r"""TODO: has print statements to debug device placement. Need to be removed.
+    Wrapper class that wraps HuggingFace models as DeepChem models
 
     The class provides a wrapper for wrapping models from HuggingFace
     ecosystem in DeepChem and training it via DeepChem's api. The reason
@@ -153,6 +154,10 @@ class HuggingFaceModel(TorchModel):
         if self.task == 'mlm':
             self.data_collator = DataCollatorForLanguageModeling(
                 tokenizer=tokenizer)
+        elif self.task == 'clm':
+            self.data_collator = DataCollatorForLanguageModeling(
+                tokenizer=tokenizer,
+                mlm = False)
         else:
             self.data_collator = None  # type: ignore
         # Ignoring type. For TorchModel, loss is a required argument but HuggingFace computes
@@ -303,7 +308,7 @@ class HuggingFaceModel(TorchModel):
 
             inputs = {**tokens, 'labels': y}
             return inputs, y, w
-
+ 
     def fit_generator(self,
                       generator: Iterable[Tuple[Any, Any, Any]],
                       max_checkpoints_to_keep: int = 5,
@@ -386,8 +391,11 @@ class HuggingFaceModel(TorchModel):
                 self.restore()
                 restore = False
             inputs: OneOrMany[torch.Tensor]
+            
+            print("ABOUT TO CALL PREPARE BATCH")
             inputs, labels, weights = self._prepare_batch(batch)
-
+            print("len(inputs) from generator", len(inputs))
+            
             optimizer.zero_grad()
             outputs = self.model(**inputs)
 
@@ -509,6 +517,11 @@ class HuggingFaceModel(TorchModel):
             inputs, _, _ = self._prepare_batch((inputs, None, None))
 
             # Invoke the model.
+            print("Model device:", next(self.model.parameters()).device)
+            for k, v in inputs.items():
+                if hasattr(v, "device"):
+                    print(f"{k} device:", v.device)
+
             output_values = self.model(**inputs)
             output_values = output_values.get('logits')
 
