@@ -202,7 +202,7 @@ class LightningTorchModel(Model):
             print('trainer_kwargs',self.trainer_kwargs)
             self.trainer = L.Trainer(**self.trainer_kwargs)
 
-        print('len(train_dataset) inside fit before dclightningdatasetmodule wrapper',len())
+        print('len(train_dataset) inside fit before dclightningdatasetmodule wrapper',len(train_dataset))
         # Create data module
         data_module = DCLightningDatasetModule(dataset=train_dataset,
                                                batch_size=self.batch_size,
