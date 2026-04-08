@@ -157,6 +157,7 @@ class DCLightningDatasetModule(L.LightningDataModule):
             num_workers=self.num_workers,
         )
 
+        print('len(dataloader) inside train_dataloader',len(dataloader))
         for batch in dataloader:
             print('batch inside train_dataloader',batch)
             break
