@@ -5,7 +5,7 @@ from peft import LoraConfig, TaskType, get_peft_model, prepare_model_for_kbit_tr
 
 from transformers import AutoModelForCausalLM, AutoTokenizer, OlmoConfig, OlmoForCausalLM, BitsAndBytesConfig
 
-from olmo_layers import OlmoForSequenceClassification
+from deepchem.models.torch_models.olmo_layers import OlmoForSequenceClassification
 from transformers.modeling_utils import PreTrainedModel
 try:
     import torch
