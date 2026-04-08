@@ -152,6 +152,11 @@ class DCLightningDatasetModule(L.LightningDataModule):
             shuffle=shuffle,
             num_workers=self.num_workers,
         )
+
+        for batch in dataloader:
+            print(batch)
+            break
+
         return dataloader
 
     def predict_dataloader(self):
