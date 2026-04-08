@@ -1,6 +1,6 @@
 import torch
 import lightning as L  # noqa
-from deepchem.models.torch_models import ModularTorchModel, TorchModel
+from deepchem.models.torch_models import ModularTorchModel, TorchModel, HuggingFaceModel
 import numpy as np
 from deepchem.utils.typing import List, OneOrMany, Any, LossFn
 from typing import Optional, Union, Tuple
@@ -139,6 +139,9 @@ class DCLightningModule(L.LightningModule):
 
         if isinstance(self.dc_model, ModularTorchModel):
             loss = self.dc_model.loss_func(inputs, labels, weights)
+        elif isinstance(self.dc_model, HuggingFaceModel):
+            outputs = self.pt_model(**inputs)
+            loss = outputs.get('loss')
         elif isinstance(self.dc_model, TorchModel):
             outputs = self.pt_model(inputs)
             if isinstance(outputs, torch.Tensor):
@@ -207,11 +210,17 @@ class DCLightningModule(L.LightningModule):
                     'This model cannot compute other outputs since no other output_types were specified.'
                 )
         inputs, _, _ = batch
-        # Invoke the model.
-        if isinstance(inputs, list) and len(inputs) == 1:
-            inputs = inputs[0]
-        output_values: Union[torch.Tensor,
-                             List[torch.Tensor]] = self.pt_model(inputs)
+
+        if isinstance(self.dc_model, HuggingFaceModel):
+            outputs = self.pt_model(**inputs)
+            output_values = outputs.get('logits')
+
+        elif isinstance(self.dc_model, TorchModel):
+            # Invoke the model.
+            if isinstance(inputs, list) and len(inputs) == 1:
+                inputs = inputs[0]
+            output_values = self.pt_model(inputs)
+
         if isinstance(output_values, torch.Tensor):
             output_values = [output_values]
         output_values_np: List[np.ndarray] = [
