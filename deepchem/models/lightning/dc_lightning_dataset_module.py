@@ -106,7 +106,7 @@ class DCLightningDatasetModule(L.LightningDataModule):
             self._dataset = dc.data._TorchIndexDiskDataset(
                 dataset)  # type: ignore[arg-type]
 
-            print('_TorchIndexDiskDataset wrapper created')
+            print('_TorchIndexDiskDataset wrapper created. len of wrapper(dataset):',len(self._dataset))
 
             # Since the model argument is provided, we assume that the user wants to use the FSDP-DDP compatible workflow, and hence replace the default generator-based collate function (collate_dataset_wrapper)
             # with one that uses an indexable collate function (collate_dataset_fn).
@@ -149,6 +149,7 @@ class DCLightningDatasetModule(L.LightningDataModule):
             batch_size = self._batch_size
             shuffle = True
 
+        print('len of train_dataset before creating a dataloader',len(self.train_dataset))
         dataloader = torch.utils.data.DataLoader(
             self.train_dataset,
             batch_size=batch_size,
@@ -159,7 +160,7 @@ class DCLightningDatasetModule(L.LightningDataModule):
 
         print('len(dataloader) inside train_dataloader',len(dataloader))
         for batch in dataloader:
-            print('batch inside train_dataloader',batch)
+            print('len(batch) inside train_dataloader',len(batch))
             break
 
         return dataloader

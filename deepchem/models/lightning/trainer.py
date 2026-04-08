@@ -202,6 +202,7 @@ class LightningTorchModel(Model):
             print('trainer_kwargs',self.trainer_kwargs)
             self.trainer = L.Trainer(**self.trainer_kwargs)
 
+        print('len(train_dataset) inside fit before dclightningdatasetmodule wrapper',len())
         # Create data module
         data_module = DCLightningDatasetModule(dataset=train_dataset,
                                                batch_size=self.batch_size,
@@ -209,10 +210,10 @@ class LightningTorchModel(Model):
                                                model=self.model)
 
 
-        print("Model device before self.trainer.fit:", next(self.lightning_model.pt_model.parameters()).device)
+        # print("Model device before self.trainer.fit:", next(self.lightning_model.pt_model.parameters()).device)
         # Train the model
         self.trainer.fit(self.lightning_model, data_module, ckpt_path=ckpt_path)
-        print("Model device after self.trainer.fit:", next(self.lightning_model.pt_model.parameters()).device)
+        # print("Model device after self.trainer.fit:", next(self.lightning_model.pt_model.parameters()).device)
 
     def predict(self,
                 dataset: Dataset,
