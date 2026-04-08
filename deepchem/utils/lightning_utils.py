@@ -61,6 +61,9 @@ def collate_dataset_fn(batch_data: List[Tuple[Any, Any, Any, Any]], model):
     ...     break
     """
 
+    print('inside collate_dataset_fn')
+    
+    print('input to collate_dataset_fn',batch_data)
     X, Y, W, ids = [], [], [], []
     X = [item[0] for item in batch_data]
     Y = [item[1] for item in batch_data]
@@ -68,4 +71,6 @@ def collate_dataset_fn(batch_data: List[Tuple[Any, Any, Any, Any]], model):
     ids = [item[3] for item in batch_data]
     processed_batch = next(
         iter(model.default_generator(dc.data.NumpyDataset(X, Y, W, ids))))
-    return model._prepare_batch(processed_batch)
+    res = model._prepare_batch(processed_batch)
+    print('returned from collate_dataset_fn',res)
+    return res

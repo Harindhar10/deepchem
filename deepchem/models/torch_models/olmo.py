@@ -144,6 +144,7 @@ class Olmo(HuggingFaceModel):
 
         smiles_batch, y, w = batch
         print('batch len',len(smiles_batch))
+        print('batch inside _prepare_batch',smiles_batch)
 
         tokens = self.tokenizer(smiles_batch[0].tolist(),
                                 padding=True,

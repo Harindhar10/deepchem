@@ -196,8 +196,10 @@ class LightningTorchModel(Model):
             # Update trainer_kwargs to include our callbacks
             updated_kwargs = self.trainer_kwargs.copy()
             updated_kwargs['callbacks'] = callbacks_list
+            print('updated_kwargs',updated_kwargs)
             self.trainer = L.Trainer(**updated_kwargs)
         else:
+            print('trainer_kwargs',self.trainer_kwargs)
             self.trainer = L.Trainer(**self.trainer_kwargs)
 
         # Create data module
@@ -206,8 +208,11 @@ class LightningTorchModel(Model):
                                                num_workers=num_workers,
                                                model=self.model)
 
+
+        print("Model device before self.trainer.fit:", next(self.lightning_model.pt_model.parameters()).device)
         # Train the model
         self.trainer.fit(self.lightning_model, data_module, ckpt_path=ckpt_path)
+        print("Model device after self.trainer.fit:", next(self.lightning_model.pt_model.parameters()).device)
 
     def predict(self,
                 dataset: Dataset,
