@@ -21,8 +21,7 @@ if TYPE_CHECKING:
 
 
 class HuggingFaceModel(TorchModel):
-    r"""TODO: has print statements to debug device placement. Need to be removed.
-    Wrapper class that wraps HuggingFace models as DeepChem models
+    r"""Wrapper class that wraps HuggingFace models as DeepChem models
 
     The class provides a wrapper for wrapping models from HuggingFace
     ecosystem in DeepChem and training it via DeepChem's api. The reason
@@ -286,7 +285,7 @@ class HuggingFaceModel(TorchModel):
                                 padding=True,
                                 return_tensors="pt")
 
-        if self.task == 'mlm':
+        if self.task == 'mlm' or 'clm':
             inputs, labels = self.data_collator.torch_mask_tokens(
                 tokens['input_ids'])
             inputs = {
@@ -392,9 +391,7 @@ class HuggingFaceModel(TorchModel):
                 restore = False
             inputs: OneOrMany[torch.Tensor]
             
-            print("ABOUT TO CALL PREPARE BATCH")
             inputs, labels, weights = self._prepare_batch(batch)
-            print("len(inputs) from generator", len(inputs))
             
             optimizer.zero_grad()
             outputs = self.model(**inputs)
@@ -649,3 +646,229 @@ class HuggingFaceModel(TorchModel):
             results.append(text_results)
 
         return results[0] if len(results) == 1 else results
+
+
+    def generate(
+            self,
+            dataset: Dataset,
+            transformers: List[Transformer] = [],
+            output_types: Optional[List[str]] = None,
+            max_new_tokens: int = 128,
+            do_sample: bool = False,
+            temperature: float = 1.0,
+            top_k: Optional[int] = None,
+            top_p: float = 1.0,
+            num_beams: int = 1,
+            **kwargs
+            ) -> OneOrMany[np.ndarray]:
+        """
+        To generate from a Hugging Face model.
+
+        Parameters
+        ----------
+        dataset: dc.data.Dataset
+            Dataset to make prediction on
+        transformers: list of dc.trans.Transformers
+            Transformers that the input data has been transformed by.  The output
+            is passed through these transformers to undo the transformations.
+        output_types: String or list of Strings
+            If specified, all outputs of this type will be retrieved
+            from the model. If output_types is specified, outputs must
+            be None.
+
+        Returns
+        -------
+        a NumPy array of the model produces a single output, or a list of arrays
+        if it produces multiple outputs
+        """
+        generator = self.default_generator(dataset,
+                                           mode='predict',
+                                           pad_batches=False)
+        return self.generate_on_generator(generator,
+                                         transformers = transformers,
+                                         output_types=output_types,
+                                         max_new_tokens = 128,
+                                         do_sample = False,
+                                         temperature = 1.0,
+                                         top_k = None,
+                                         top_p = 1.0,
+                                         num_beams  = 1,
+                                         **kwargs)
+
+    def generate_on_generator(
+            self,
+            generator: Iterable[Tuple[Any, Any, Any]],
+            transformers: List[Transformer] = [],
+            output_types: Optional[OneOrMany[str]] = None,
+            max_new_tokens: int = 128,
+            do_sample: bool = False,
+            temperature: float = 1.0,
+            top_k: Optional[int] = None,
+            top_p: float = 1.0,
+            num_beams: int = 1,
+            ) -> OneOrMany[np.ndarray]:
+        """
+        Parameters
+        ----------
+        generator: generator
+            this should generate batches, each represented as a tuple of the form
+            (inputs, labels, weights).
+        transformers: list of dc.trans.Transformers
+            Transformers that the input data has been transformed by.  The output
+            is passed through these transformers to undo the transformations.
+        output_types: String or list of Strings
+            If specified, all outputs of this type will be retrieved
+            from the model. If output_types is specified, outputs must
+            be None.
+        Returns:
+            a NumPy array of the model produces a single output, or a list of arrays
+            if it produces multiple outputs
+        """
+        return self._generate(generator, 
+                              transformers, 
+                              False, 
+                              output_types,
+                              max_new_tokens = 128,
+                              do_sample = False,
+                              temperature = 1.0,
+                              top_k = None,
+                              top_p = 1.0,
+                              num_beams  = 1,)
+
+
+    def _generate(self, generator: Iterable[Tuple[Any, Any, Any]],
+                 transformers: List[Transformer], uncertainty: bool,
+                 other_output_types: Optional[OneOrMany[str]]):
+        """Predicts output for data provided by generator.
+
+        This is the private implementation of prediction. Do not
+        call it directly. Instead call one of the public prediction methods.
+
+        Parameters
+        ----------
+        generator: generator
+            this should generate batches, each represented as a tuple of the form
+            (inputs, labels, weights).
+        transformers: list of dc.trans.Transformers
+            Transformers that the input data has been transformed by.  The output
+            is passed through these transformers to undo the transformations.
+        uncertainty: bool
+            specifies whether this is being called as part of estimating uncertainty.
+            If True, it sets the training flag so that dropout will be enabled, and
+            returns the values of the uncertainty outputs.
+        other_output_types: list, optional
+            Provides a list of other output_types (strings) to predict from model.
+
+        Returns
+        -------
+            a NumPy array of the model produces a single output, or a list of arrays
+            if it produces multiple outputs
+
+        Note
+        ----
+        A HuggingFace model does not output uncertainity. The argument is here
+        since it is also present in TorchModel. Similarly, other variables like
+        other_output_types are also not used. Instead, a HuggingFace model outputs
+        loss, logits, hidden state and attentions.
+        """
+        results: Optional[List[List[np.ndarray]]] = None
+        # variances: Optional[List[List[np.ndarray]]] = None
+        # if uncertainty and (other_output_types is not None):
+        #     raise ValueError(
+        #         'This model cannot compute uncertainties and other output types simultaneously. Please invoke one at a time.'
+        #     )
+        # if uncertainty:
+        #     if self._variance_outputs is None or len(
+        #             self._variance_outputs) == 0:
+        #         raise ValueError('This model cannot compute uncertainties')
+        #     if len(self._variance_outputs) != len(self._prediction_outputs):
+        #         raise ValueError(
+        #             'The number of variances must exactly match the number of outputs'
+        #         )
+        # if other_output_types:
+        #     if self._other_outputs is None or len(self._other_outputs) == 0:
+        #         raise ValueError(
+        #             'This model cannot compute other outputs since no other output_types were specified.'
+        #         )
+        if self.task != 'clm':
+            raise ValueError(
+                "generate() is only supported for task='clm'. "
+                f"Current task is '{self.task}'."
+            )
+
+        self._ensure_built()
+        self.model.eval()
+        for batch in generator:
+            inputs, labels, weights = batch
+            inputs, _, _ = self._prepare_batch((inputs, None, None))
+
+            input_ids = inputs['input_ids'].to(self.device)
+            attention_mask = inputs['attention_mask'].to(self.device)
+
+            # Invoke the model
+            output_ids = self.model.generate(
+                input_ids=input_ids,
+                attention_mask=attention_mask,
+                max_new_tokens=max_new_tokens,
+                do_sample=do_sample,
+                temperature=temperature,
+                top_k=top_k,
+                top_p=top_p,
+                num_beams=num_beams,
+                **kwargs,
+            )
+
+            
+            output_values = self.model(**inputs)
+            # output_values = output_values.get('logits')
+
+            # if isinstance(output_values, torch.Tensor):
+            #     output_values = [output_values]
+            output_values = [t.detach().cpu().numpy() for t in output_values]
+            # Apply tranformers and record results.
+            # if uncertainty:
+            #     var = [output_values[i] for i in self._variance_outputs]
+            #     if variances is None:
+            #         variances = [var]
+            #     else:
+            #         for i, t in enumerate(var):
+            #             variances[i].append(t)
+            # access_values = []
+            # if other_output_types:
+            #     access_values += self._other_outputs
+            # elif self._prediction_outputs is not None:
+            #     access_values += self._prediction_outputs
+
+            # if len(access_values) > 0:
+            #     output_values = [output_values[i] for i in access_values]
+
+            if len(transformers) > 0:
+                if len(output_values) > 1:
+                    raise ValueError(
+                        "predict() does not support Transformers for models with multiple outputs."
+                    )
+                elif len(output_values) == 1:
+                    output_values = [
+                        undo_transforms(output_values[0], transformers)
+                    ]
+            if results is None:
+                results = [[] for i in range(len(output_values))]
+            for i, t in enumerate(output_values):
+                results[i].append(t)
+
+        # Concatenate arrays to create the final results.
+        final_results = []
+        final_variances = []
+        if results is not None:
+            for r in results:
+                final_results.append(np.concatenate(r, axis=0))
+
+        if uncertainty and variances is not None:
+            for v in variances:
+                final_variances.append(np.concatenate(v, axis=0))
+            return zip(final_results, final_variances)
+
+        if len(final_results) == 1:
+            return final_results[0]
+        else:
+            return np.array(final_results)
