@@ -3,7 +3,7 @@ from typing import Dict, Any, Tuple, Optional
 from deepchem.models.torch_models import HuggingFaceModel
 from peft import LoraConfig, TaskType, get_peft_model, prepare_model_for_kbit_training
 
-from transformers import AutoModelForCausalLM, AutoTokenizer, OlmoConfig, OlmoForCausalLM, BitsAndBytesConfig
+from transformers import AutoModel, AutoModelForCausalLM, AutoTokenizer, OlmoConfig, OlmoForCausalLM, BitsAndBytesConfig
 
 from deepchem.models.torch_models.olmo_layers import OlmoForSequenceClassification
 from transformers.modeling_utils import PreTrainedModel
@@ -88,25 +88,23 @@ class Olmo(HuggingFaceModel):
 
     def __init__(self,
                  task: str,
-                 tokenizer_path: str = 'seyonec/PubChem10M_SMILES_BPE_60k',
+                 tokenizer_path: str = 'allenai/olmo-7b-hf',
                  n_tasks: int = 1,
                  config: Dict[Any, Any] = {},
                  **kwargs):
         self.n_tasks = n_tasks
         self.finetune_strategy = kwargs.get("finetune_strategy", "qlora")
 
-        tokenizer = AutoTokenizer.from_pretrained('allenai/olmo-7b-hf',
+        tokenizer = AutoTokenizer.from_pretrained(tokenizer_path,
                                                   trust_remote_code=True)
         self.model: PreTrainedModel
         chemberta_config = OlmoConfig(vocab_size=tokenizer.vocab_size,
                                          **config)
-        print(chemberta_config)
         self.model = nn.Linear(5,5)
 
         if task == 'clm':
             pass
         #   self.model = OlmoForCausalLM(chemberta_config)
-
         elif task == 'mtr':
             chemberta_config.problem_type = 'regression'
             chemberta_config.num_labels = n_tasks
@@ -143,8 +141,6 @@ class Olmo(HuggingFaceModel):
         """
 
         smiles_batch, y, w = batch
-        print('batch len',len(smiles_batch))
-        print('batch inside _prepare_batch',smiles_batch)
 
         tokens = self.tokenizer(smiles_batch[0].tolist(),
                                 padding=True,
@@ -249,7 +245,7 @@ class Olmo(HuggingFaceModel):
             gc.collect()
             torch.cuda.empty_cache()
 
-            bnb_config = None
+            self.bnb_config = None
             if self.finetune_strategy == 'qlora':
                 self.bnb_config = BitsAndBytesConfig(
                 load_in_4bit=True,
@@ -258,10 +254,9 @@ class Olmo(HuggingFaceModel):
                 bnb_4bit_compute_dtype=torch.float16
                 )
 
-            print('self.config', self.config)
             if self.task == 'clm':
                 self.model = AutoModelForCausalLM.from_pretrained(
-                    "allenai/olmo-7b-hf", 
+                    model_dir, 
                     quantization_config = self.bnb_config,
                     trust_remote_code=True,
                     low_cpu_mem_usage = True,
@@ -273,7 +268,7 @@ class Olmo(HuggingFaceModel):
         
             elif self.task in ['mtr', 'regression', 'classification']:
                 self.model = OlmoForSequenceClassification.from_pretrained(
-                            "allenai/olmo-7b-hf",
+                            model_dir,
                             quantization_config = self.bnb_config,
                             trust_remote_code=True, 
                             low_cpu_mem_usage = True,
@@ -285,7 +280,7 @@ class Olmo(HuggingFaceModel):
                 self.task_type = "SEQ_CLS"
     
             else:
-                self.model = AutoModel.from_pretrained("allenai/olmo-7b-hf",
+                self.model = AutoModel.from_pretrained(model_dir,
                                                        quantization_config = self.bnb_config,
                                                        trust_remote_code=True,
                                                        low_cpu_mem_usage = True,
@@ -297,8 +292,8 @@ class Olmo(HuggingFaceModel):
                 self.model = prepare_model_for_kbit_training(
                     self.model, use_gradient_checkpointing=True
                 )
-        
-            if self.finetune_strategy != "full_finetune":
+
+            if self.finetune_strategy == "lora" or self.finetune_strategy == "qlora" :
                 lora_cfg = LoraConfig(
                     r=32,
                     lora_alpha=64,
@@ -307,7 +302,7 @@ class Olmo(HuggingFaceModel):
                     bias="none",
                     task_type=self.task_type,
                 )
-            self.model = get_peft_model(self.model, lora_cfg)
+                self.model = get_peft_model(self.model, lora_cfg)
 
         elif not from_hf_checkpoint:
             checkpoints = sorted(self.get_checkpoints(model_dir))
@@ -343,7 +338,7 @@ class Olmo(HuggingFaceModel):
                                            strict=False)
 
 
-        
+
     def generate(self,
                  inputs: list,
                  max_new_tokens: int = 128,
@@ -408,6 +403,7 @@ class Olmo(HuggingFaceModel):
                 f"Current task is '{self.task}'."
             )
 
+        self.tokenizer.padding_side = "left"
         tokens = self.tokenizer(inputs, padding=True, return_tensors="pt")
         input_ids = tokens['input_ids'].to(self.device)
         attention_mask = tokens['attention_mask'].to(self.device)
