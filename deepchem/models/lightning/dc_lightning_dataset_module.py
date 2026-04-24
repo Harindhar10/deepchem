@@ -106,8 +106,6 @@ class DCLightningDatasetModule(L.LightningDataModule):
             self._dataset = dc.data._TorchIndexDiskDataset(
                 dataset)  # type: ignore[arg-type]
 
-            print('_TorchIndexDiskDataset wrapper created. len of wrapper(dataset):',len(self._dataset))
-
             # Since the model argument is provided, we assume that the user wants to use the FSDP-DDP compatible workflow, and hence replace the default generator-based collate function (collate_dataset_wrapper)
             # with one that uses an indexable collate function (collate_dataset_fn).
             if collate_fn == collate_dataset_wrapper:
