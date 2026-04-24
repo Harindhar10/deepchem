@@ -149,7 +149,6 @@ class DCLightningDatasetModule(L.LightningDataModule):
             batch_size = self._batch_size
             shuffle = True
 
-        print('len of train_dataset before creating a dataloader',len(self.train_dataset))
         dataloader = torch.utils.data.DataLoader(
             self.train_dataset,
             batch_size=batch_size,
@@ -157,11 +156,6 @@ class DCLightningDatasetModule(L.LightningDataModule):
             shuffle=shuffle,
             num_workers=self.num_workers,
         )
-
-        print('len(dataloader) inside train_dataloader',len(dataloader))
-        for batch in dataloader:
-            print('len(batch) inside train_dataloader',len(batch))
-            break
 
         return dataloader
 
